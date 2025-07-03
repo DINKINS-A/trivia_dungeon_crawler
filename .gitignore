@@ -1,2 +1,4 @@
 # Visual Studio 2022 cache directory
 .vs/
+bin
+obj
