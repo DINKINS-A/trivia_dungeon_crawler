@@ -1,0 +1,1 @@
+Font obtained from https://www.1001fonts.com/users/vicfieger/ for free use.
