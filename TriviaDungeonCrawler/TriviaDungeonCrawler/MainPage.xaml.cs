@@ -1,4 +1,6 @@
-﻿namespace TriviaDungeonCrawler
+﻿using System.Threading.Tasks;
+
+namespace TriviaDungeonCrawler
 {
     public partial class MainPage : ContentPage
     {
@@ -9,16 +11,12 @@
             InitializeComponent();
         }
 
-        private void OnCounterClicked(object? sender, EventArgs e)
+        private async void OnStartClicked(object? sender, EventArgs e)
         {
-            count++;
-
-            if (count == 1)
-                CounterBtn.Text = $"Clicked {count} time";
-            else
-                CounterBtn.Text = $"Clicked {count} times";
-
-            SemanticScreenReader.Announce(CounterBtn.Text);
+            await Navigation.PushAsync(new Game());
         }
+
+        private void OnExitClicked(object? sender, EventArgs e) => Application.Current.Quit();
+
     }
 }
