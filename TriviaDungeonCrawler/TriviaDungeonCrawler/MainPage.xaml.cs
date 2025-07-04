@@ -4,11 +4,10 @@ namespace TriviaDungeonCrawler
 {
     public partial class MainPage : ContentPage
     {
-        int count = 0;
 
         public MainPage()
         {
-            InitializeComponent();
+           InitializeComponent();
         }
 
         private async void OnStartClicked(object? sender, EventArgs e)
