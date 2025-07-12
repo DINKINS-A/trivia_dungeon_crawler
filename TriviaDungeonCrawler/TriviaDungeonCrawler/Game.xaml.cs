@@ -1,5 +1,7 @@
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.PlatformConfiguration.iOSSpecific;
+using Microsoft.Maui.Layouts;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography.X509Certificates;
 using System.Windows.Input;
@@ -21,6 +23,7 @@ public partial class Game : ContentPage
     private Cell current;
     private Cell exit;
     private Grid mazeUIControl = [];
+    private Grid fogUIControl = [];
 
     private static readonly Image knight = new() { Source = "knight.png", Aspect = Aspect.AspectFit };
     private static readonly Image door = new() { Source = "exit.png", Aspect = Aspect.AspectFit };
@@ -79,7 +82,7 @@ public partial class Game : ContentPage
     /*
      * Create the Grid container for the maze
      */
-	private AbsoluteLayout CreateGrid()
+	private Layout CreateGrid()
 	{
 		Grid grid = [];
 
@@ -95,6 +98,7 @@ public partial class Game : ContentPage
             {
                 Height = new GridLength(32)
             };
+            fogUIControl.AddRowDefinition(fogRow);
             mazeUIControl.AddRowDefinition(fogRow);
 
             ColumnDefinition column = new ColumnDefinition
@@ -107,6 +111,7 @@ public partial class Game : ContentPage
             {
                 Width = new GridLength(32)
             };
+            fogUIControl.AddColumnDefinition(fogColumn);
             mazeUIControl.AddColumnDefinition(fogColumn);
         }
 
@@ -124,16 +129,36 @@ public partial class Game : ContentPage
         }
 
         // Add character image to grid at the starting cell
-        mazeUIControl.Add(knight, start.coordniate.Item1, start.coordniate.Item2);
+        mazeUIControl.Add(knight, start.coordinate.Item1, start.coordinate.Item2);
 
         // Add exit image to grid at the exit cell
-        mazeUIControl.Add(door, exit.coordniate.Item1, exit.coordniate.Item2);
+        mazeUIControl.Add(door, exit.coordinate.Item1, exit.coordinate.Item2);
+
+        // Add fog images to ui grid
+        for (int i = 0; i < MAZE_HEIGHT; i++)
+        {
+            for (int j = 0; j < MAZE_WIDTH; j++)
+            {
+
+                string pathToImage = "fog.png";
+                fogUIControl.Add(new Image
+                {
+                    Source = pathToImage
+                }, i, j);
+            }
+        }
+
+        // set initial vision
+        ProvideVision();
 
         grid.HorizontalOptions = LayoutOptions.Center;
         grid.Margin = new Thickness(0, 10, 0, 10);
 
         mazeUIControl.HorizontalOptions = LayoutOptions.Center;
         mazeUIControl.Margin = new Thickness(0, 10, 0, 10);
+
+        fogUIControl.HorizontalOptions = LayoutOptions.Center;
+        fogUIControl.Margin = new Thickness(0, 10, 0, 10);
 
 
         AbsoluteLayout display = [];
@@ -142,6 +167,8 @@ public partial class Game : ContentPage
 
         display.Add(grid);
         display.Add(mazeUIControl);
+        display.Add(fogUIControl);
+
 
         return display;
 	}
@@ -247,8 +274,8 @@ public partial class Game : ContentPage
 
     private void UpArrowClicked(object? sender, EventArgs e)
     {
-        var x = current.coordniate.Item1;
-        var y = current.coordniate.Item2;
+        var x = current.coordinate.Item1;
+        var y = current.coordinate.Item2;
         // if there is a neighbor above
         if (!current.HasWall("north") && current.HasNeightborAtLoc(x, y - 1))
         {
@@ -263,8 +290,8 @@ public partial class Game : ContentPage
         
     private void DownArrowClicked(object? sender, EventArgs e)
     {
-        var x = current.coordniate.Item1;
-        var y = current.coordniate.Item2;
+        var x = current.coordinate.Item1;
+        var y = current.coordinate.Item2;
         // if there is a neighbor above
         if (!current.HasWall("south") && current.HasNeightborAtLoc(x, y + 1))
         {
@@ -278,8 +305,8 @@ public partial class Game : ContentPage
 
     private void LeftArrowClicked(object? sender, EventArgs e)
     {
-        var x = current.coordniate.Item1;
-        var y = current.coordniate.Item2;
+        var x = current.coordinate.Item1;
+        var y = current.coordinate.Item2;
         // if there is a neighbor above
         if (!current.HasWall("west") && current.HasNeightborAtLoc(x - 1, y))
         {
@@ -293,8 +320,8 @@ public partial class Game : ContentPage
 
     private void RightArrowClicked(object? sender, EventArgs e)
     {
-        var x = current.coordniate.Item1;
-        var y = current.coordniate.Item2;
+        var x = current.coordinate.Item1;
+        var y = current.coordinate.Item2;
         // if there is a neighbor above
         if (!current.HasWall("east") && current.HasNeightborAtLoc(x + 1, y))
         {
@@ -309,8 +336,8 @@ public partial class Game : ContentPage
     private async void HandleClick()
     {
         // When the use steps on the exit
-        if (current.coordniate.Item1 == exit.coordniate.Item1 &&
-            current.coordniate.Item2 == exit.coordniate.Item2)
+        if (current.coordinate.Item1 == exit.coordinate.Item1 &&
+            current.coordinate.Item2 == exit.coordinate.Item2)
         {
             // remove the Image views so they can be used in new grid
             ClearUIGrid();
@@ -318,6 +345,47 @@ public partial class Game : ContentPage
             // use navigation stack to load new level
             Navigation.InsertPageBefore(new Game(), this);
             await Navigation.PopAsync();
+            return;
+        }
+
+        ProvideVision();
+    }
+
+    private void ProvideVision()
+    {
+        int index;
+
+        // current square
+        index = current.coordinate.Item1 * MAZE_HEIGHT + current.coordinate.Item2;
+        ((Image)fogUIControl[index]).Opacity = 0;
+
+        // if there is not a wall
+        if (!current.west_wall)
+        {
+            index = (current.coordinate.Item1 - 1) * MAZE_HEIGHT + current.coordinate.Item2;
+            ((Image)fogUIControl[index]).Opacity = 0;
+        }
+
+        // if there is not a wall
+        if (!current.north_wall)
+        {
+            index = current.coordinate.Item1 * MAZE_HEIGHT + (current.coordinate.Item2 - 1);
+            ((Image)fogUIControl[index]).Opacity = 0;
+        }
+
+        // if there is not a wall
+        if (!current.east_wall)
+        {
+            index = (current.coordinate.Item1 + 1) * MAZE_HEIGHT + current.coordinate.Item2;
+            ((Image)fogUIControl[index]).Opacity = 0;
+        }
+
+
+        // if there is not a wall
+        if (!current.south_wall)
+        {
+            index = current.coordinate.Item1 * MAZE_HEIGHT + (current.coordinate.Item2 + 1);
+            ((Image)fogUIControl[index]).Opacity = 0;
         }
     }
 
@@ -405,18 +473,18 @@ public partial class Game : ContentPage
         List<Cell> neighbors = cell.neighbors.FindAll(neighbor => !neighbor.visited);
         Cell chosenNeighbor = neighbors[r.Next(neighbors.Count())];
         // tear down walls
-        if (chosenNeighbor.coordniate.Item1 > cell.coordniate.Item1)
+        if (chosenNeighbor.coordinate.Item1 > cell.coordinate.Item1)
         {
             chosenNeighbor.west_wall = false;
             cell.east_wall = false;
-        } else if (chosenNeighbor.coordniate.Item1 < cell.coordniate.Item1) {
+        } else if (chosenNeighbor.coordinate.Item1 < cell.coordinate.Item1) {
             chosenNeighbor.east_wall = false;
             cell.west_wall = false;
-        } else if (chosenNeighbor.coordniate.Item2 > cell.coordniate.Item2)
+        } else if (chosenNeighbor.coordinate.Item2 > cell.coordinate.Item2)
         {
             chosenNeighbor.north_wall = false;
             cell.south_wall = false;
-        } else if (chosenNeighbor.coordniate.Item2 < cell.coordniate.Item2) {
+        } else if (chosenNeighbor.coordinate.Item2 < cell.coordinate.Item2) {
             chosenNeighbor.south_wall = false;
             cell.north_wall = false;
         }
@@ -426,7 +494,7 @@ public partial class Game : ContentPage
 
     private class Cell
     {
-        public Tuple<int, int> coordniate;
+        public Tuple<int, int> coordinate;
         public bool north_wall = true;
         public bool south_wall = true;
         public bool east_wall = true;
@@ -436,12 +504,12 @@ public partial class Game : ContentPage
 
         public Cell(int x, int y)
         {
-            coordniate = new Tuple<int, int>(x, y);
+            coordinate = new Tuple<int, int>(x, y);
         }
 
         public bool HasNeightborAtLoc(int x, int y) => neighbors.Where(
-            neighbor => neighbor.coordniate.Item1 == x &&
-                        neighbor.coordniate.Item2 == y).Count() == 1;
+            neighbor => neighbor.coordinate.Item1 == x &&
+                        neighbor.coordinate.Item2 == y).Count() == 1;
 
         public bool HasWall(string wall)
         {
