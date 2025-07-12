@@ -19,9 +19,11 @@ public partial class Game : ContentPage
     private List<Cell> maze = [];
     private Cell start;
     private Cell current;
+    private Cell exit;
     private Grid mazeUIControl = [];
 
     private static readonly Image knight = new() { Source = "knight.png", Aspect = Aspect.AspectFit };
+    private static readonly Image door = new() { Source = "exit.png", Aspect = Aspect.AspectFit };
 
 	public Game()
 	{
@@ -61,9 +63,18 @@ public partial class Game : ContentPage
             firstArrowContainer,
             secondArrowContainer,
         };
-
+        
         this.Content = content;
+
 	}
+
+    private void ClearUIGrid()
+    {
+        while(mazeUIControl.Count > 0)
+        {
+            mazeUIControl.RemoveAt(0);
+        }
+    }
 
     /*
      * Create the Grid container for the maze
@@ -114,6 +125,9 @@ public partial class Game : ContentPage
 
         // Add character image to grid at the starting cell
         mazeUIControl.Add(knight, start.coordniate.Item1, start.coordniate.Item2);
+
+        // Add exit image to grid at the exit cell
+        mazeUIControl.Add(door, exit.coordniate.Item1, exit.coordniate.Item2);
 
         grid.HorizontalOptions = LayoutOptions.Center;
         grid.Margin = new Thickness(0, 10, 0, 10);
@@ -242,7 +256,9 @@ public partial class Game : ContentPage
             mazeUIControl.Add(knight, x, y - 1);
 
             current = maze[x * MAZE_HEIGHT + (y - 1)];
+            HandleClick();
         }
+
     }
         
     private void DownArrowClicked(object? sender, EventArgs e)
@@ -256,6 +272,7 @@ public partial class Game : ContentPage
             mazeUIControl.Add(knight, x, y + 1);
 
             current = maze[x * MAZE_HEIGHT + (y + 1)];
+            HandleClick();
         }
     }
 
@@ -270,6 +287,7 @@ public partial class Game : ContentPage
             mazeUIControl.Add(knight, x - 1, y);
 
             current = maze[(x - 1) * MAZE_HEIGHT + y];
+            HandleClick();
         }
     }
 
@@ -284,6 +302,22 @@ public partial class Game : ContentPage
             mazeUIControl.Add(knight, x + 1, y);
 
             current = maze[(x + 1) * MAZE_HEIGHT + y];
+            HandleClick();
+        }
+    }
+
+    private async void HandleClick()
+    {
+        // When the use steps on the exit
+        if (current.coordniate.Item1 == exit.coordniate.Item1 &&
+            current.coordniate.Item2 == exit.coordniate.Item2)
+        {
+            // remove the Image views so they can be used in new grid
+            ClearUIGrid();
+
+            // use navigation stack to load new level
+            Navigation.InsertPageBefore(new Game(), this);
+            await Navigation.PopAsync();
         }
     }
 
@@ -316,6 +350,12 @@ public partial class Game : ContentPage
         {
             Cell neighbor = GetRandomNeighbor(cell);
             RunDepthFirstSearch(neighbor);
+        }
+
+        // set the exit equal to first time algorithm backtracks
+        if (exit == null)
+        {
+            exit = cell;
         }
     }
 
