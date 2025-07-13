@@ -13,6 +13,8 @@ public partial class Game : ContentPage
     private const int MAZE_HEIGHT = 10;
     private const int MAZE_WIDTH = 10;
 
+    private static int current_level = 0;
+
     private ImageButton? up;
     private ImageButton? down;
     private ImageButton? left;
@@ -24,6 +26,7 @@ public partial class Game : ContentPage
     private Cell exit;
     private Grid mazeUIControl = [];
     private Grid fogUIControl = [];
+    private List<Tuple<int, int>> enemy_coordinates = [];
 
     private static readonly Image knight = new() { Source = "knight.png", Aspect = Aspect.AspectFit };
     private static readonly Image door = new() { Source = "exit.png", Aspect = Aspect.AspectFit };
@@ -86,7 +89,7 @@ public partial class Game : ContentPage
 	{
 		Grid grid = [];
 
-        for (int i = 0; i < 10; i++)
+        for (int i = 0; i < MAZE_HEIGHT; i++)
         {
             RowDefinition row = new RowDefinition
             {
@@ -134,12 +137,39 @@ public partial class Game : ContentPage
         // Add exit image to grid at the exit cell
         mazeUIControl.Add(door, exit.coordinate.Item1, exit.coordinate.Item2);
 
+        // Add enemies images to grid.
+        foreach(var enemy_coordinate in enemy_coordinates)
+        {
+            var enemy = maze[enemy_coordinate.Item1 * MAZE_HEIGHT + enemy_coordinate.Item2].Enemy;
+
+            switch (enemy)
+            {
+                case "EASY":
+                    mazeUIControl.Add(new Image
+                    {
+                        Source = "green_slime.png"
+                    }, enemy_coordinate.Item1, enemy_coordinate.Item2);
+                    continue;
+                case "MEDIUM":
+                    mazeUIControl.Add(new Image
+                    {
+                        Source = "blue_slime.png"
+                    }, enemy_coordinate.Item1, enemy_coordinate.Item2);
+                    continue;
+                case "HARD":
+                    mazeUIControl.Add(new Image
+                    {
+                        Source = "red_slime.png"
+                    }, enemy_coordinate.Item1, enemy_coordinate.Item2);
+                    break;
+            }
+        }
+
         // Add fog images to ui grid
         for (int i = 0; i < MAZE_HEIGHT; i++)
         {
             for (int j = 0; j < MAZE_WIDTH; j++)
             {
-
                 string pathToImage = "fog.png";
                 fogUIControl.Add(new Image
                 {
@@ -343,6 +373,7 @@ public partial class Game : ContentPage
             ClearUIGrid();
 
             // use navigation stack to load new level
+            current_level++;
             Navigation.InsertPageBefore(new Game(), this);
             await Navigation.PopAsync();
             return;
@@ -408,7 +439,13 @@ public partial class Game : ContentPage
         int randY = rand.Next(MAZE_HEIGHT);
         start = maze[randX * MAZE_HEIGHT + randY];
         current = start;
+
+        // create maze
         RunDepthFirstSearch(start);
+
+        // add enemies. avoid start and exit
+        AddEnemies();
+
     }
 
     private void RunDepthFirstSearch(Cell cell)
@@ -492,6 +529,79 @@ public partial class Game : ContentPage
         return chosenNeighbor;
     }
 
+    private int GetNumEasyEnemies() 
+    {
+       return 3 * current_level + 1; 
+    }
+
+    private int GetNumMediumEnemies() 
+    {
+        return 2 * current_level + 1; 
+    }
+
+    private int GetNumHardEnemies()
+    {
+        return current_level + 1; 
+    }
+
+    private void AddEnemies()
+    {
+        // difficulties[0] = # easy enemies, difficulties[1] = # medium enemies, difficulties[2] = # hard enemies
+        List<int> difficulties = 
+        [
+            GetNumEasyEnemies(),
+            GetNumMediumEnemies(),
+            GetNumHardEnemies()
+        ];
+
+        // adds enemies. avoids start and exit
+        for (int difficulty_index = 0; difficulty_index < difficulties.Count; difficulty_index++) {
+            for (int num_enemy = 0; num_enemy < difficulties[difficulty_index]; num_enemy++)
+            {
+                var enenmy_coordinate = GetValidSpawnPoint();
+                var enemy_cell = maze[enenmy_coordinate.Item1 * MAZE_HEIGHT + enenmy_coordinate.Item2];
+                switch (difficulty_index)
+                {
+                    // easy
+                    case 0:
+                        enemy_cell.Enemy = "EASY";
+                        break;
+                    // medium
+                    case 1:
+                        enemy_cell.Enemy = "MEDIUM";
+                        break;
+                    // hard
+                    case 2:
+                        enemy_cell.Enemy = "HARD";
+                        break;
+                }
+            }
+        }
+    }
+
+    private Tuple<int, int> GetValidSpawnPoint()
+    {
+        var rand = new Random();
+        int randX = rand.Next(MAZE_HEIGHT);
+        int randY = rand.Next(MAZE_HEIGHT);
+        var potential_coordinate = Tuple.Create(randX, randY);
+
+        // while there is another entity there
+        while (enemy_coordinates.Contains(potential_coordinate) ||
+            (potential_coordinate.Item1 == start.coordinate.Item1 && potential_coordinate.Item2 == start.coordinate.Item2) ||
+            (potential_coordinate.Item1 == exit.coordinate.Item1 && potential_coordinate.Item2 == exit.coordinate.Item2))
+        {
+            // generate a new location
+            randX = rand.Next(MAZE_HEIGHT);
+            randY = rand.Next(MAZE_HEIGHT);
+            potential_coordinate = Tuple.Create(randX, randY);
+        }
+
+        enemy_coordinates.Add(potential_coordinate);
+
+        return potential_coordinate;
+    }
+
     private class Cell
     {
         public Tuple<int, int> coordinate;
@@ -501,10 +611,13 @@ public partial class Game : ContentPage
         public bool west_wall = true;
         public bool visited = false;
         public List<Cell> neighbors = new List<Cell>();
+        public string Enemy { get; set; }
+        
 
         public Cell(int x, int y)
         {
             coordinate = new Tuple<int, int>(x, y);
+            Enemy = "";
         }
 
         public bool HasNeightborAtLoc(int x, int y) => neighbors.Where(
