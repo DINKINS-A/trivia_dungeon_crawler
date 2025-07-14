@@ -1,10 +1,14 @@
 using Microsoft.Maui.Controls;
 using Microsoft.Maui.Controls.PlatformConfiguration.iOSSpecific;
 using Microsoft.Maui.Layouts;
+using Microsoft.VisualBasic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography.X509Certificates;
+using System.Text.Json;
 using System.Windows.Input;
+using System.Web;
+using System.Collections.Concurrent;
 
 namespace TriviaDungeonCrawler;
 
@@ -31,11 +35,28 @@ public partial class Game : ContentPage
     private static readonly Image knight = new() { Source = "knight.png", Aspect = Aspect.AspectFit };
     private static readonly Image door = new() { Source = "exit.png", Aspect = Aspect.AspectFit };
 
-	public Game()
+    private static readonly List<int> question_categories = [17, 18, 19];
+
+    private static readonly string sessionTokenURI = "https://opentdb.com/api_token.php?command=request";
+    private static readonly string questionURI = "https://opentdb.com/api.php?amount=50";
+
+    HttpClient _client;
+    JsonSerializerOptions _serializerOptions;
+
+    private static ConcurrentBag<QuestionObj> Questions { get; set; }
+
+    public Game()
 	{
 		InitializeComponent();
         CreateMaze();
 		CreateLevel();
+
+        if (Questions == null)
+        {
+            InitalizeHttpClient();
+            Questions = [];
+            GetQuestions();
+        }
 	}
 
     /*
@@ -645,5 +666,123 @@ public partial class Game : ContentPage
             }
         }
     };
+
+    private class QuestionObj
+    {
+
+        private string _difficulty;
+        private string _category;
+        private string _question;
+        private string _correct_answer;
+        private string[] _incorrect_answers;
+
+        public string Difficulty { 
+            get => _difficulty; 
+            set 
+            {
+                _difficulty = HttpUtility.HtmlDecode(value).ToUpper();
+            } 
+        }
+
+        public string Category 
+        {
+            get => _category;
+            set 
+            {
+                _category = HttpUtility.HtmlDecode(value);
+            }
+        }
+        public string Question
+        {
+            get => _question;
+            set
+            {
+                _question = HttpUtility.HtmlDecode(value);
+            }
+        }
+        public string Correct_answer
+        {
+            get => _correct_answer;
+            set
+            {
+                _correct_answer = HttpUtility.HtmlDecode(value);
+            }
+        }
+        public  string[] Incorrect_answers 
+        { 
+            get => _incorrect_answers;
+            set 
+            {
+                var new_incorrect_answers = new string[value.Length];
+                for (int i = 0; i < value.Length; i++)
+                {
+                    new_incorrect_answers[i] = HttpUtility.HtmlDecode(value[i]);
+                }
+                _incorrect_answers = new_incorrect_answers;
+            }
+        }
+
+    }
+
+    private void InitalizeHttpClient()
+    {
+        _client = new HttpClient();
+        _serializerOptions = new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            WriteIndented = true
+        };
+
+    }
+
+    private async void GetQuestions()
+    {
+        Questions = [];
+        string sessionKey;
+
+        Uri uriSessionToken = new (string.Format(sessionTokenURI, string.Empty));
+        try
+        {
+            HttpResponseMessage response = await _client.GetAsync(uriSessionToken);
+            if (response.IsSuccessStatusCode)
+            {
+                string content = await response.Content.ReadAsStringAsync();
+                var end = content.Split(":");
+                sessionKey = end[end.Length - 1].Replace("\"", "").Replace("}", "");
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine(@"\tERROR {0}", ex.Message);
+        }
+
+        Uri uriQuestion;
+        foreach (var category in question_categories)
+        {
+            uriQuestion = new(string.Format($"{questionURI}&category={category}", string.Empty));
+
+            try
+            {
+                HttpResponseMessage response = await _client.GetAsync(uriQuestion);
+                if (response.IsSuccessStatusCode) 
+                {
+                    string content = await response.Content.ReadAsStringAsync();
+                    var startPosition = content.IndexOf("[");
+                    content = content.Substring(startPosition);
+                    var endPosition = content.LastIndexOf("]");
+                    var tempContent = content.Substring(endPosition);
+                    content = content[..(content.Length - tempContent.Length + 1)];
+                    Questions = [.. Questions.Union(JsonSerializer.Deserialize<List<QuestionObj>>(content, _serializerOptions))];
+                    await Task.Delay(5000);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(@"\tERROR {0}", ex.Message);
+            }
+        }
+
+
+    }
 
 }
