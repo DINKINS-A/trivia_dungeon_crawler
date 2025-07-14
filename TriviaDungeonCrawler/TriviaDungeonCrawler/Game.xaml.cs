@@ -19,6 +19,8 @@ public partial class Game : ContentPage
 
     private static int current_level = 0;
 
+    private static Player _player = new();
+
     private ImageButton? up;
     private ImageButton? down;
     private ImageButton? left;
@@ -31,6 +33,9 @@ public partial class Game : ContentPage
     private Grid mazeUIControl = [];
     private Grid fogUIControl = [];
     private List<Tuple<int, int>> enemy_coordinates = [];
+    private List<Image> enemies = [];
+    private VerticalStackLayout content;
+    private Label healthLabel = new();
 
     private static readonly Image knight = new() { Source = "knight.png", Aspect = Aspect.AspectFit };
     private static readonly Image door = new() { Source = "exit.png", Aspect = Aspect.AspectFit };
@@ -78,14 +83,14 @@ public partial class Game : ContentPage
         firstArrowContainer.HorizontalOptions = LayoutOptions.Center;
         secondArrowContainer.HorizontalOptions = LayoutOptions.Center;
 
-        var content = new VerticalStackLayout
+        healthLabel.Text = $"Health: {Player.Health}";
+        healthLabel.VerticalOptions = LayoutOptions.Center;
+        healthLabel.HorizontalOptions = LayoutOptions.Center;
+        healthLabel.PropertyChanged += HealthLabel_PropertyChanged;
+
+        content = new VerticalStackLayout
         {
-            new Label
-            {
-                Text = "Gameplay Screen",
-                VerticalOptions = LayoutOptions.Center,
-                HorizontalOptions = LayoutOptions.Center,
-            },
+           healthLabel,
             grid,
             firstArrowContainer,
             secondArrowContainer,
@@ -94,6 +99,14 @@ public partial class Game : ContentPage
         this.Content = content;
 
 	}
+
+    private void HealthLabel_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (Player.Health <= 0)
+        {
+            Navigation.PopAsync();
+        }
+    }
 
     private void ClearUIGrid()
     {
@@ -330,6 +343,8 @@ public partial class Game : ContentPage
         // if there is a neighbor above
         if (!current.HasWall("north") && current.HasNeightborAtLoc(x, y - 1))
         {
+            // check if the user would encounter an enemy
+            CheckEncounter(x, y - 1);
             mazeUIControl.Remove(knight);
             mazeUIControl.Add(knight, x, y - 1);
 
@@ -346,6 +361,8 @@ public partial class Game : ContentPage
         // if there is a neighbor above
         if (!current.HasWall("south") && current.HasNeightborAtLoc(x, y + 1))
         {
+            // check if the user would encounter an enemy
+            CheckEncounter(x, y + 1);
             mazeUIControl.Remove(knight);
             mazeUIControl.Add(knight, x, y + 1);
 
@@ -361,6 +378,8 @@ public partial class Game : ContentPage
         // if there is a neighbor above
         if (!current.HasWall("west") && current.HasNeightborAtLoc(x - 1, y))
         {
+            // check if the user would encounter an enemy
+            CheckEncounter(x - 1, y);
             mazeUIControl.Remove(knight);
             mazeUIControl.Add(knight, x - 1, y);
 
@@ -376,6 +395,9 @@ public partial class Game : ContentPage
         // if there is a neighbor above
         if (!current.HasWall("east") && current.HasNeightborAtLoc(x + 1, y))
         {
+            // check if the user would encounter an enemy
+            CheckEncounter(x + 1, y);
+
             mazeUIControl.Remove(knight);
             mazeUIControl.Add(knight, x + 1, y);
 
@@ -384,9 +406,35 @@ public partial class Game : ContentPage
         }
     }
 
+    private async void CheckEncounter(int x, int y)
+    {
+        var potential_encounter_coordinate = Tuple.Create(x, y);
+        // When the user steps on an enemy
+        if (enemy_coordinates.Contains(potential_encounter_coordinate))
+        {
+            enemy_coordinates.Remove(potential_encounter_coordinate);
+            IView? enemy = null;
+            foreach(var child in mazeUIControl.Children)
+            {
+                var row = mazeUIControl.GetRow(child);
+                var column = mazeUIControl.GetColumn(child);
+                if (row == y && column == x)
+                {
+                    enemy = child;
+                    break;
+                }
+            }
+
+            var question = GetRandomQuestion(potential_encounter_coordinate);
+            mazeUIControl.Remove(enemy);
+            Debug.Print($"Health before: {Player.Health}");
+            await Navigation.PushAsync(new Encounter(question, enemy, healthLabel));
+        }
+    }
+
     private async void HandleClick()
     {
-        // When the use steps on the exit
+        // When the user steps on the exit
         if (current.coordinate.Item1 == exit.coordinate.Item1 &&
             current.coordinate.Item2 == exit.coordinate.Item2)
         {
@@ -667,63 +715,6 @@ public partial class Game : ContentPage
         }
     };
 
-    private class QuestionObj
-    {
-
-        private string _difficulty;
-        private string _category;
-        private string _question;
-        private string _correct_answer;
-        private string[] _incorrect_answers;
-
-        public string Difficulty { 
-            get => _difficulty; 
-            set 
-            {
-                _difficulty = HttpUtility.HtmlDecode(value).ToUpper();
-            } 
-        }
-
-        public string Category 
-        {
-            get => _category;
-            set 
-            {
-                _category = HttpUtility.HtmlDecode(value);
-            }
-        }
-        public string Question
-        {
-            get => _question;
-            set
-            {
-                _question = HttpUtility.HtmlDecode(value);
-            }
-        }
-        public string Correct_answer
-        {
-            get => _correct_answer;
-            set
-            {
-                _correct_answer = HttpUtility.HtmlDecode(value);
-            }
-        }
-        public  string[] Incorrect_answers 
-        { 
-            get => _incorrect_answers;
-            set 
-            {
-                var new_incorrect_answers = new string[value.Length];
-                for (int i = 0; i < value.Length; i++)
-                {
-                    new_incorrect_answers[i] = HttpUtility.HtmlDecode(value[i]);
-                }
-                _incorrect_answers = new_incorrect_answers;
-            }
-        }
-
-    }
-
     private void InitalizeHttpClient()
     {
         _client = new HttpClient();
@@ -784,5 +775,13 @@ public partial class Game : ContentPage
 
 
     }
+    private QuestionObj GetRandomQuestion(Tuple<int, int> coordinate)
+    {
+        var random = new Random();
+        string difficulty = maze[coordinate.Item1 * MAZE_HEIGHT + coordinate.Item2].Enemy; // default
+        var filteredQuestions = Questions.Where(question => question.Difficulty.ToUpper().Equals(difficulty.ToUpper())).ToList();
+        return filteredQuestions[random.Next(filteredQuestions.Count)];
+    }
+
 
 }
