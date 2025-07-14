@@ -12,10 +12,18 @@ namespace TriviaDungeonCrawler
 
         private async void OnStartClicked(object? sender, EventArgs e)
         {
-            await Navigation.PushAsync(new Game());
+            if (sender is Button)
+            {
+                var temp = ((Button)sender).Background;
+                ((Button)sender).Background = Color.FromHsv(100, 0, 100);
+                await Task.Delay(100);
+                ((Button)sender).Background = temp;
+            }
+            Player.Health = 50;
+            Navigation.PushAsync(new Game());
         }
 
-        private void OnExitClicked(object? sender, EventArgs e) => Application.Current.Quit();
+        private async void OnExitClicked(object? sender, EventArgs e) => Application.Current.Quit();
 
     }
 }
