@@ -1,5 +1,4 @@
 using Microsoft.Maui.Controls;
-using Microsoft.Maui.Controls.PlatformConfiguration.iOSSpecific;
 using Microsoft.Maui.Layouts;
 using Microsoft.VisualBasic;
 using System.Diagnostics;
@@ -36,6 +35,8 @@ public partial class Game : ContentPage
     private List<Image> enemies = [];
     private VerticalStackLayout content;
     private Label healthLabel = new();
+    private Label scoreLabel = new();
+    private bool _reloading = false;
 
     private static readonly Image knight = new() { Source = "knight.png", Aspect = Aspect.AspectFit };
     private static readonly Image door = new() { Source = "exit.png", Aspect = Aspect.AspectFit };
@@ -56,7 +57,9 @@ public partial class Game : ContentPage
         CreateMaze();
 		CreateLevel();
 
-        if (Questions == null)
+        Shell.SetNavBarIsVisible(this, false);
+
+        if (current_level % 5 == 0)
         {
             InitalizeHttpClient();
             Questions = [];
@@ -72,39 +75,55 @@ public partial class Game : ContentPage
         var grid = CreateGrid();
         CreateArrowButtons();
 
-        HorizontalStackLayout firstArrowContainer = new HorizontalStackLayout();
-        firstArrowContainer.Children.Add(up);
-        firstArrowContainer.Children.Add(down);
+        HorizontalStackLayout arrowContainer = new HorizontalStackLayout();
+        arrowContainer.Children.Add(left);
+        arrowContainer.Children.Add(right);
 
-        HorizontalStackLayout secondArrowContainer = new HorizontalStackLayout();
-        secondArrowContainer.Children.Add(left);
-        secondArrowContainer.Children.Add(right);
 
-        firstArrowContainer.HorizontalOptions = LayoutOptions.Center;
-        secondArrowContainer.HorizontalOptions = LayoutOptions.Center;
+        arrowContainer.HorizontalOptions = LayoutOptions.Center;;
 
         healthLabel.Text = $"Health: {Player.Health}";
         healthLabel.VerticalOptions = LayoutOptions.Center;
         healthLabel.HorizontalOptions = LayoutOptions.Center;
         healthLabel.PropertyChanged += HealthLabel_PropertyChanged;
+        healthLabel.Padding = new Thickness(10, 10, 10, 10);
+
+        scoreLabel.Text = $"Score: {Player.Score}";
+        scoreLabel.VerticalOptions = LayoutOptions.Center;
+        scoreLabel.HorizontalOptions = LayoutOptions.Center;
+        scoreLabel.Padding = new Thickness(10, 10, 10, 10);
+
+        var information = new HorizontalStackLayout
+        {
+            healthLabel,
+            scoreLabel
+        };
+
+        information.HorizontalOptions = LayoutOptions.Center;
+        information.Padding = new Thickness(0, 10, 0, 10);
+
 
         content = new VerticalStackLayout
         {
-           healthLabel,
+           information,
             grid,
-            firstArrowContainer,
-            secondArrowContainer,
+            up,
+            arrowContainer,
+            down
         };
         
         this.Content = content;
 
 	}
 
-    private void HealthLabel_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    private async void HealthLabel_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (Player.Health <= 0)
+        // death
+        if (!_reloading && Player.Health <= 0)
         {
-            Navigation.PopAsync();
+            _reloading = true;
+            Navigation.InsertPageBefore(new GameOver(), this);
+            await Navigation.PopAsync();
         }
     }
 
@@ -312,26 +331,31 @@ public partial class Game : ContentPage
     {
         up = new ImageButton
         {
-            Source = "arrow_up.png"
+            Source = "arrow_up.png",
+            Padding = new Thickness(50,10,50,10)
         };
         up.Clicked += (s, e) => { UpArrowClicked(s, e); };
 
         down = new ImageButton
         {
-            Source = "arrow_down.png"
+            Source = "arrow_down.png",
+            Padding = new Thickness(50, 10, 50, 10)
         };
         down.Clicked += (s, e) => { DownArrowClicked(s, e); };
 
         left = new ImageButton
         {
-            Source = "arrow_left.png"
+            Source = "arrow_left.png",
+            Padding = new Thickness(50, 10, 50, 10)
         };
         left.Clicked += (s, e) => { LeftArrowClicked(s, e); };
 
         right = new ImageButton
         {
-            Source = "arrow_right.png"
+            Source = "arrow_right.png",
+            Padding = new Thickness(50, 10, 50, 10)
         };
+        
         right.Clicked += (s, e) => { RightArrowClicked(s, e); };
 
     }
@@ -427,8 +451,7 @@ public partial class Game : ContentPage
 
             var question = GetRandomQuestion(potential_encounter_coordinate);
             mazeUIControl.Remove(enemy);
-            Debug.Print($"Health before: {Player.Health}");
-            await Navigation.PushAsync(new Encounter(question, enemy, healthLabel));
+            await Navigation.PushAsync(new Encounter(question, enemy, healthLabel, scoreLabel));
         }
     }
 
@@ -744,7 +767,9 @@ public partial class Game : ContentPage
         }
         catch (Exception ex)
         {
+# if DEBUG
             Debug.WriteLine(@"\tERROR {0}", ex.Message);
+# endif
         }
 
         Uri uriQuestion;
@@ -769,7 +794,9 @@ public partial class Game : ContentPage
             }
             catch (Exception ex)
             {
+# if DEBUG
                 Debug.WriteLine(@"\tERROR {0}", ex.Message);
+# endif
             }
         }
 
@@ -780,7 +807,9 @@ public partial class Game : ContentPage
         var random = new Random();
         string difficulty = maze[coordinate.Item1 * MAZE_HEIGHT + coordinate.Item2].Enemy; // default
         var filteredQuestions = Questions.Where(question => question.Difficulty.ToUpper().Equals(difficulty.ToUpper())).ToList();
-        return filteredQuestions[random.Next(filteredQuestions.Count)];
+        var randomQuestion = filteredQuestions[random.Next(filteredQuestions.Count)];
+        Questions = [.. Questions.Where(question => question != randomQuestion).ToList()]; // remove it from question list
+        return randomQuestion;
     }
 
 

@@ -1,20 +1,27 @@
+
 namespace TriviaDungeonCrawler;
 
 public partial class Encounter : ContentPage
 {
 	Button _correct_answer;
+	private List<Button> _incorrect_answers = [];
 	private Label _healthLabel;
+	private Label _scoreLabel;
+	
 
 	public Encounter()
 	{
 		InitializeComponent();
+		Shell.SetNavBarIsVisible(this, false);
 	}
 
-	public Encounter(QuestionObj question, IView enemy, Label healthLabel)
+	public Encounter(QuestionObj question, IView enemy, Label healthLabel, Label scoreLabel)
 	{
 		_healthLabel = healthLabel;
+		_scoreLabel = scoreLabel;
 		InitializeComponent();
-		CreateQuestionView(question, enemy);
+        Shell.SetNavBarIsVisible(this, false);
+        CreateQuestionView(question, enemy);
 	}
 
 	private void CreateQuestionView(QuestionObj question, IView enemy)
@@ -32,6 +39,12 @@ public partial class Encounter : ContentPage
 												.OrderBy(_ => random.Next());
 
 
+		category.FontFamily = "NotoSansMath";
+		questionLabel.FontFamily = "NotoSansMath";
+
+		category.HorizontalOptions = LayoutOptions.Center;
+		questionLabel.HorizontalOptions = LayoutOptions.Center;
+
 		var content = new VerticalStackLayout
 		{
 			category,
@@ -46,55 +59,75 @@ public partial class Encounter : ContentPage
 				Text = answer,
 			};
 
-			if (answer.Equals(question.Correct_answer)) 
+            int damage = 0;
+
+            switch (question.Difficulty)
+            {
+                case "EASY":
+                    damage = 1;
+                    break;
+                case "MEDIUM":
+                    damage = 5;
+                    break;
+                case "HARD":
+                    damage = 10;
+                    break;
+            }
+
+            if (answer.Equals(question.Correct_answer)) 
 			{
 				_correct_answer = button;
+				
+			} else
+			{
+				_incorrect_answers.Add(button);
 			}
 
-			button.Clicked += async (s, e) =>
-			{
-                if (s is Button)
-                {
-					var clickedAnswer = ((Button)s);
-					if (clickedAnswer.Equals(_correct_answer)) 
+				button.Clicked += async (s, e) =>
+				{
+					if (s is Button)
 					{
-                        clickedAnswer.Background = Color.FromHsv(115, 500, 100);
-                    } else
-					{
-                        clickedAnswer.Background = Color.FromHsv(10, 85, 100);
-						_correct_answer.Background = Color.FromHsv(115, 500, 100);
 
-						int damage = 0;
-
-						switch(question.Difficulty)
+						foreach (var answer in _incorrect_answers)
 						{
-							case "EASY":
-								damage = 1;
-								break;
-							case "MEDIUM":
-								damage = 5;
-								break;
-							case "HARD":
-								damage = 10;
-								break;
+							answer.IsEnabled = false;
 						}
 
-					Player.Health -= 10;
-					_healthLabel.Text = $"Health: {Player.Health.ToString()}";
-                    }
-						
-                }
-                await Task.Delay(1000);
-				await Navigation.PopAsync();
-			};
+						var clickedAnswer = ((Button)s);
+						if (clickedAnswer.Equals(_correct_answer))
+						{
+							clickedAnswer.Background = Color.FromHsv(115, 500, 100);
+                            Player.Score += damage;
+							_scoreLabel.Text = $"Score: {Player.Score}";
+                        }
+						else
+						{
+							clickedAnswer.Background = Color.FromHsv(10, 85, 100);
+							_correct_answer.Background = Color.FromHsv(115, 500, 100);
 
+
+							Player.Health -= damage;
+							
+						}
+
+					}
+					await Task.Delay(1000);
+					await Navigation.PopAsync();
+                    _healthLabel.Text = $"Health: {Player.Health}";
+                };
+
+			button.FontFamily = "NotoSansMath";
             content.Add(button);
 		}
+
+		
 
 		content.Padding = new Thickness(30, 0);
 		content.Spacing = 25;
 
 		scrollView.Content = content;
+
+
 		this.Content = scrollView;
 	}
 

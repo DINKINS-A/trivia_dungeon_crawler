@@ -6,5 +6,11 @@
         {
             InitializeComponent();
         }
+
+        protected override bool OnBackButtonPressed()
+        {
+            // do nothing
+            return true;
+        }
     }
 }

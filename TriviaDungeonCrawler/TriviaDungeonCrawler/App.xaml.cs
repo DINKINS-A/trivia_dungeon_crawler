@@ -1,4 +1,6 @@
-﻿namespace TriviaDungeonCrawler
+﻿using Microsoft.Maui.Platform;
+
+namespace TriviaDungeonCrawler
 {
     public partial class App : Application
     {
@@ -9,7 +11,7 @@
 
         protected override Window CreateWindow(IActivationState? activationState)
         {
-            return new Window(new NavigationPage(new AppShell()));
+            return new Window(new AppShell());
         }
     }
 }
